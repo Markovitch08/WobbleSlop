@@ -7,7 +7,7 @@ import * as THREE from 'three';
  */
 export type SfxName =
   | 'swing' | 'hitSword' | 'hitClub' | 'clang' | 'cast' | 'explode' | 'death'
-  | 'place' | 'remove' | 'click' | 'start' | 'victory' | 'whoosh';
+  | 'place' | 'remove' | 'click' | 'start' | 'victory' | 'whoosh' | 'bow' | 'block';
 
 export class Sfx {
   private ctx: AudioContext | null = null;
@@ -94,6 +94,8 @@ export class Sfx {
       case 'place': done(this.blip(out, now, 480 * r, 900 * r, 0.09, 'sine', 0.35)); break;
       case 'remove': done(this.blip(out, now, 620 * r, 260 * r, 0.1, 'triangle', 0.3)); break;
       case 'click': done(this.blip(out, now, 1300, 1100, 0.035, 'square', 0.08)); break;
+      case 'bow': done(this.bow(out, now, r)); break;
+      case 'block': done(this.block(out, now, r)); break;
       case 'start': done(this.horn(out, now)); break;
       case 'victory': done(this.fanfare(out, now)); break;
     }
@@ -244,6 +246,38 @@ export class Sfx {
     this.env(g, t, peak, 0.005, dur);
     this.osc(type, f0, f1, t, dur).connect(g).connect(out);
     return dur + 0.05;
+  }
+
+  /** Bowstring twang: plucked low string plus a little air. */
+  private bow(out: AudioNode, t: number, r: number): number {
+    const g = this.ctx!.createGain();
+    this.env(g, t, 0.45, 0.003, 0.25);
+    const lp = this.ctx!.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.setValueAtTime(2400, t);
+    lp.frequency.exponentialRampToValueAtTime(300, t + 0.25);
+    this.osc('sawtooth', 210 * r, 160 * r, t, 0.28).connect(lp).connect(g).connect(out);
+    this.whoosh(out, t + 0.02, r * 1.3, 0.18);
+    return 0.35;
+  }
+
+  /** Shield block: a dull wooden thunk with a metal ting. */
+  private block(out: AudioNode, t: number, r: number): number {
+    const ctx = this.ctx!;
+    const bp = ctx.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.frequency.value = 380 * r;
+    bp.Q.value = 2;
+    const g = ctx.createGain();
+    this.env(g, t, 1.0, 0.002, 0.14);
+    this.noiseSrc(t, 0.16).connect(bp).connect(g).connect(out);
+    const g2 = ctx.createGain();
+    this.env(g2, t, 0.7, 0.002, 0.16);
+    this.osc('sine', 130 * r, 70, t, 0.18).connect(g2).connect(out);
+    const g3 = ctx.createGain();
+    this.env(g3, t, 0.12, 0.002, 0.3);
+    this.osc('sine', 2100 * r, 2080 * r, t, 0.3).connect(g3).connect(out);
+    return 0.35;
   }
 
   private horn(out: AudioNode, t: number): number {

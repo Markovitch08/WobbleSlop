@@ -39,7 +39,7 @@ export function createGrassyPlains(seed = 7): MapData {
     const r = Math.max(Math.abs(x), Math.abs(z) * 1.1);
     const ring = smooth(arena, arena + 26, r);
     const hills = 3.2 + 2.2 * Math.sin(x * 0.07 + 1.3) * Math.cos(z * 0.06) + 1.4 * Math.sin(x * 0.13 + z * 0.11);
-    const ripple = 0.18 * Math.sin(x * 0.35) * Math.sin(z * 0.31);
+    const ripple = 0.12 * Math.sin(x * 0.35) * Math.sin(z * 0.31);
     return ring * hills * 2.2 + ripple * (1 - ring) * smooth(4, 20, r);
   };
   const rocks: Rock[] = [];
@@ -56,7 +56,7 @@ export function createGrassyPlains(seed = 7): MapData {
   }
   // A few small boulders inside the arena (but off the centre line) for some chaos.
   for (const [x, z] of [[-6, 16], [7, -15], [0, 24], [0, -24]]) rocks.push({ x, z, r: 0.7 });
-  return { name: 'Grassy Plains', size: 160, segments: 64, arena, heightAt, rocks, trees };
+  return { name: 'Grassy Plains', size: 160, segments: 120, arena, heightAt, rocks, trees };
 }
 
 /** Build the terrain grid (shared by trimesh collider and render mesh). */

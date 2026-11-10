@@ -112,14 +112,45 @@ export class Effects {
 
 const ballGeo = new THREE.SphereGeometry(1, 14, 10);
 
+const shaftGeo = new THREE.CylinderGeometry(0.012, 0.012, 0.75, 6).rotateX(Math.PI / 2);
+const arrowTipGeo = new THREE.ConeGeometry(0.03, 0.09, 8).rotateX(Math.PI / 2);
+const fletchGeo = new THREE.BoxGeometry(0.004, 0.06, 0.12);
+const shaftMat = new THREE.MeshStandardMaterial({ color: 0xc9a46a, roughness: 0.7 });
+const tipMat = new THREE.MeshStandardMaterial({ color: 0x9aa3ad, roughness: 0.3, metalness: 0.5 });
+const fletchMat = new THREE.MeshStandardMaterial({ color: 0xf4f1ea, roughness: 0.8, side: THREE.DoubleSide });
+
+function buildArrow(): THREE.Group {
+  const g = new THREE.Group();
+  g.add(new THREE.Mesh(shaftGeo, shaftMat));
+  const tip = new THREE.Mesh(arrowTipGeo, tipMat);
+  tip.position.z = 0.41;
+  g.add(tip);
+  for (let i = 0; i < 3; i++) {
+    const f = new THREE.Mesh(fletchGeo, fletchMat);
+    f.position.z = -0.3;
+    f.rotation.z = (i / 3) * Math.PI * 2;
+    f.translateY(0.03);
+    g.add(f);
+  }
+  g.traverse((o) => { o.castShadow = true; });
+  return g;
+}
+
 export class ProjectileView {
-  private readonly core: THREE.Mesh;
-  private readonly halo: THREE.Mesh;
+  private readonly core: THREE.Object3D;
+  private readonly halo: THREE.Object3D;
+  private readonly arrow: boolean;
   constructor(private readonly p: Projectile, private readonly scene: THREE.Scene) {
-    this.core = new THREE.Mesh(ballGeo, new THREE.MeshBasicMaterial({ color: 0xfff1b0 }));
-    this.core.scale.setScalar(p.def.radius * 0.8);
-    this.halo = new THREE.Mesh(ballGeo, new THREE.MeshBasicMaterial({ color: p.def.color, transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false }));
-    this.halo.scale.setScalar(p.def.radius * 1.8);
+    this.arrow = p.def.kind === 'arrow';
+    if (this.arrow) {
+      this.core = buildArrow();
+      this.halo = new THREE.Object3D();
+    } else {
+      this.core = new THREE.Mesh(ballGeo, new THREE.MeshBasicMaterial({ color: 0xfff1b0 }));
+      this.core.scale.setScalar(p.def.radius * 0.8);
+      this.halo = new THREE.Mesh(ballGeo, new THREE.MeshBasicMaterial({ color: p.def.color, transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false }));
+      this.halo.scale.setScalar(p.def.radius * 1.8);
+    }
     scene.add(this.core, this.halo);
     p.view = this;
     this.sync();
@@ -136,12 +167,18 @@ export class ProjectileView {
     const cur = new THREE.Vector3(t.x, t.y, t.z);
     if (this.hasPrev) cur.lerp(this.prev, 1 - alpha);
     this.core.position.copy(cur);
+    if (this.arrow) {
+      const v = this.p.body.linvel();
+      if (v.x * v.x + v.y * v.y + v.z * v.z > 0.01) this.core.lookAt(cur.x + v.x, cur.y + v.y, cur.z + v.z);
+      return;
+    }
     this.halo.position.copy(cur);
     this.halo.scale.setScalar(this.p.def.radius * (1.6 + Math.random() * 0.5));
   }
   dispose(): void {
     this.scene.remove(this.core, this.halo);
-    (this.core.material as THREE.Material).dispose();
-    (this.halo.material as THREE.Material).dispose();
+    if (this.arrow) return; // arrow parts use shared geometry/materials
+    ((this.core as THREE.Mesh).material as THREE.Material).dispose();
+    ((this.halo as THREE.Mesh).material as THREE.Material).dispose();
   }
 }

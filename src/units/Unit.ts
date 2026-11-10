@@ -3,13 +3,15 @@ import { RAPIER, type Physics, PHYSICS_DT, GRAVITY } from '../core/Physics';
 import { Ragdoll, ARM_REST, type ArmPose, type PartName } from './Ragdoll';
 import type { UnitDef, WeaponDef, AttackStyle, ProjectileDef } from './types';
 import { getWeapon } from './weapons';
-import { weaponPieces } from './weaponShapes';
+import { offhandPieces, weaponPieces } from './weaponShapes';
 
 export type BattleEvent =
   | { type: 'hit'; pos: THREE.Vector3; power: number; weapon: string }
   | { type: 'clang'; pos: THREE.Vector3; power: number }
   | { type: 'swing'; pos: THREE.Vector3; weapon: string }
   | { type: 'cast'; pos: THREE.Vector3 }
+  | { type: 'shoot'; pos: THREE.Vector3 }
+  | { type: 'block'; pos: THREE.Vector3; power: number }
   | { type: 'explode'; pos: THREE.Vector3; radius: number }
   | { type: 'death'; pos: THREE.Vector3; unit: Unit }
   | { type: 'spawn'; pos: THREE.Vector3 };
@@ -24,7 +26,7 @@ export interface BattleContext {
 
 type AttackState = 'ready' | 'windup' | 'strike' | 'recover';
 
-interface StylePoses { guard: ArmPose; windup: ArmPose; strike: ArmPose; twist: [number, number]; lean: [number, number] }
+interface StylePoses { guard: ArmPose; windup: ArmPose; strike: ArmPose; twist: [number, number]; lean: [number, number]; leftWindup?: ArmPose }
 
 const POSES: Record<AttackStyle, StylePoses> = {
   slash: {
@@ -45,7 +47,18 @@ const POSES: Record<AttackStyle, StylePoses> = {
     strike: { pitch: -1.7, roll: -0.1, yaw: 0, bend: -0.4, stiffness: 1.6 },
     twist: [-0.3, 0.2], lean: [-0.05, 0.15],
   },
+  shoot: {
+    guard: { pitch: -0.45, roll: -0.15, yaw: 0, bend: -0.6, stiffness: 0.9 },
+    windup: { pitch: -1.5, roll: 0.05, yaw: 0.1, bend: -0.05, stiffness: 1.4 },
+    strike: { pitch: -1.45, roll: 0.05, yaw: 0.1, bend: -0.05, stiffness: 1.2 },
+    // the other hand draws the string back to the chest
+    leftWindup: { pitch: -1.45, roll: 0.5, yaw: 0, bend: -1.9, stiffness: 1.2 },
+    twist: [0.25, 0.25], lean: [0, 0.05],
+  },
 };
+
+/** Left arm pushing a centre-grip shield out in front of the body. */
+const SHIELD_GUARD: ArmPose = { pitch: -1.15, roll: 0.3, yaw: 0, bend: -0.35, stiffness: 1.3 };
 
 const CHEER: ArmPose = { pitch: -2.4, roll: -0.6, yaw: 0, bend: -0.4, stiffness: 0.9 };
 const _v = new THREE.Vector3();
@@ -64,6 +77,9 @@ export class Unit {
   readonly ragdoll: Ragdoll;
   readonly weaponBody: RAPIER.RigidBody;
   private weaponJoint: RAPIER.ImpulseJoint | null;
+  /** Left-hand item (shield), if any. */
+  readonly offhandBody: RAPIER.RigidBody | null = null;
+  private offhandJoint: RAPIER.ImpulseJoint | null = null;
   private readonly tipLocal: THREE.Vector3;
   private readonly ctx: BattleContext;
 
@@ -88,6 +104,10 @@ export class Unit {
 
   /** Optional render hook set by the view layer. */
   view?: { sync(dt?: number, alpha?: number): void; capture(): void; dispose(): void; flash(): void };
+
+  get hasShield(): boolean {
+    return this.offhandBody !== null;
+  }
 
   constructor(ctx: BattleContext, def: UnitDef, team: number, position: THREE.Vector3, yaw: number) {
     this.ctx = ctx;
@@ -135,6 +155,38 @@ export class Unit {
       if (part.mass < floor) {
         part.body.collider(0).setMass(floor);
         part.mass = floor;
+      }
+    }
+
+    // Off-hand item (shield): welded to the left forearm the same way, weightless while held.
+    const off = offhandPieces(def.offhand ?? 'none');
+    if (off.length) {
+      const handL = this.ragdoll.handWorld(false);
+      const ob = ctx.physics.world.createRigidBody(
+        RAPIER.RigidBodyDesc.dynamic().setTranslation(handL.x, handL.y, handL.z).setRotation(this.ragdoll.parts.lArmL.body.rotation())
+          .setAngularDamping(0.6).setCanSleep(false).setGravityScale(0),
+      );
+      let offMass = 0;
+      for (const p of off) {
+        const cd = p.kind === 'box' ? RAPIER.ColliderDesc.cuboid(p.hx, p.hy, p.hz)
+          : p.kind === 'ball' ? RAPIER.ColliderDesc.ball(p.r)
+            : RAPIER.ColliderDesc.capsule(p.half, p.r).setRotation(toZ);
+        cd.setTranslation(p.at.x, p.at.y, p.at.z).setMass(p.mass).setFriction(0.6);
+        const c = ctx.physics.world.createCollider(cd, ob);
+        ctx.physics.tag(c, { kind: 'shield', unitId: this.id, team, ref: { owner: this } });
+        offMass += p.mass;
+      }
+      const ojd = RAPIER.JointData.fixed(this.ragdoll.handLocal(false), { x: 0, y: 0, z: 0, w: 1 }, { x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 0, w: 1 });
+      this.offhandJoint = ctx.physics.world.createImpulseJoint(ojd, this.ragdoll.parts.lArmL.body, ob, true);
+      this.offhandJoint.setContactsEnabled(false);
+      this.offhandBody = ob;
+      for (const name of ['uArmL', 'lArmL'] as const) {
+        const part = this.ragdoll.parts[name];
+        const floor = offMass * ARM_MASS_FLOOR;
+        if (part.mass < floor) {
+          part.body.collider(0).setMass(floor);
+          part.mass = floor;
+        }
       }
     }
   }
@@ -217,23 +269,27 @@ export class Unit {
     switch (this.attackState) {
       case 'ready':
         rd.armR = this.cheering ? { ...CHEER } : { ...poses.guard };
-        rd.armL = this.cheering ? { ...CHEER } : { ...ARM_REST };
+        rd.armL = this.cheering && !this.hasShield ? { ...CHEER } : this.restLeft();
         rd.torsoTwist = 0;
         rd.torsoLean = 0;
         break;
       case 'windup':
         rd.armR = { ...poses.windup };
+        rd.armL = poses.leftWindup && !this.hasShield ? { ...poses.leftWindup } : this.restLeft();
         rd.torsoTwist = poses.twist[0];
         rd.torsoLean = poses.lean[0];
         if (this.attackT >= w.windup) {
           this.attackState = 'strike';
           this.attackT = 0;
-          this.ctx.emit({ type: w.projectile ? 'cast' : 'swing', pos: this.tipWorld(), weapon: w.shape });
+          const kind = w.projectile ? (w.projectile.kind === 'arrow' ? 'shoot' : 'cast') : 'swing';
+          if (kind === 'swing') this.ctx.emit({ type: 'swing', pos: this.tipWorld(), weapon: w.shape });
+          else this.ctx.emit({ type: kind, pos: this.tipWorld() });
           if (w.projectile) this.fireProjectile(w.projectile);
         }
         break;
       case 'strike': {
         rd.armR = { ...poses.strike };
+        rd.armL = this.restLeft();
         rd.torsoTwist = poses.twist[1];
         rd.torsoLean = poses.lean[1];
         // TABS-style "pull the weapon toward the target" so swings actually connect.
@@ -266,12 +322,23 @@ export class Unit {
     }
   }
 
+  private restLeft(): ArmPose {
+    return this.hasShield ? { ...SHIELD_GUARD } : { ...ARM_REST };
+  }
+
   private fireProjectile(p: ProjectileDef): void {
     const tgt = this.attackTarget;
     if (!tgt || !tgt.alive || this.fired) return;
     this.fired = true;
-    const from = this.tipWorld();
-    from.y += 0.15;
+    let from: THREE.Vector3;
+    if (p.kind === 'arrow') {
+      // Arrows leave from in front of the chest, along the facing direction.
+      const yaw = this.ragdoll.heading;
+      from = this.ragdoll.pos('torso').add(new THREE.Vector3(Math.sin(yaw) * 0.7, 0.15, Math.cos(yaw) * 0.7));
+    } else {
+      from = this.tipWorld();
+      from.y += 0.15;
+    }
     // Lead the target a little and compensate for the projectile's reduced gravity.
     const aim = tgt.ragdoll.pos('torso');
     const tv = tgt.ragdoll.vel();
@@ -306,6 +373,11 @@ export class Unit {
       this.weaponBody.setGravityScale(1, true);
       this.weaponJoint = null;
     }
+    if (this.offhandJoint && this.offhandBody) {
+      this.ctx.physics.world.removeImpulseJoint(this.offhandJoint, true);
+      this.offhandJoint = null;
+      this.offhandBody.setGravityScale(1, true);
+    }
     this.ctx.emit({ type: 'death', pos: this.ragdoll.pos('head'), unit: this });
   }
 
@@ -313,6 +385,9 @@ export class Unit {
     this.view?.dispose();
     if (this.weaponJoint) this.ctx.physics.world.removeImpulseJoint(this.weaponJoint, false);
     this.weaponJoint = null;
+    if (this.offhandJoint) this.ctx.physics.world.removeImpulseJoint(this.offhandJoint, false);
+    this.offhandJoint = null;
+    if (this.offhandBody) this.ctx.physics.removeBody(this.offhandBody);
     this.ragdoll.dispose();
     this.ctx.physics.removeBody(this.weaponBody);
   }

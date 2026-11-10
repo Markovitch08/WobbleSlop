@@ -5,12 +5,16 @@
  * in registry.ts; to add a weapon, register a WeaponDef in weapons.ts.
  */
 
-export type AttackStyle = 'slash' | 'overhead' | 'cast';
-export type WeaponShape = 'sword' | 'club' | 'staff' | 'axe' | 'spear';
+export type AttackStyle = 'slash' | 'overhead' | 'cast' | 'shoot';
+export type WeaponShape = 'sword' | 'club' | 'staff' | 'axe' | 'spear' | 'bow' | 'mace';
+/** Item held in the left hand. */
+export type OffhandId = 'none' | 'shield';
 export type HatId = 'none' | 'helmet' | 'wizard' | 'cap' | 'viking' | 'crown';
 export type AiRole = 'melee' | 'ranged';
 
 export interface ProjectileDef {
+  /** fireball = explodes on impact; arrow = direct hit on whatever it strikes. */
+  kind: 'fireball' | 'arrow';
   speed: number;
   radius: number;
   gravityScale: number;
@@ -81,6 +85,8 @@ export interface UnitDef {
   cost: number;
   role: AiRole;
   weapon: string;
+  /** Optional left-hand item (defaults to none). */
+  offhand?: OffhandId;
   body: BodyParams;
   stats: UnitStats;
   look: Appearance;

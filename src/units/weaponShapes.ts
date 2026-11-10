@@ -46,6 +46,24 @@ export function weaponPieces(w: WeaponDef): { pieces: WeaponPiece[]; tip: THREE.
         ],
         tip: v(0, 0, L - 0.23),
       };
+    case 'bow':
+      // Limbs run along +Z/-Z through the grip (the bow stands upright when the arm aims forward).
+      return {
+        pieces: [
+          { kind: 'capsuleZ', r: 0.028, half: L * 0.42, at: v(0, -0.05, L * 0.45), mass: m * 0.4, color: w.color },
+          { kind: 'capsuleZ', r: 0.028, half: L * 0.42, at: v(0, -0.05, -L * 0.45), mass: m * 0.4, color: w.color },
+          { kind: 'capsuleZ', r: 0.04, half: 0.06, at: v(0, 0, 0), mass: m * 0.2, color: 0x3b2a1a },
+        ],
+        tip: v(0, 0.25, 0),
+      };
+    case 'mace':
+      return {
+        pieces: [
+          { kind: 'capsuleZ', r: 0.03, half: L / 2 - 0.05, at: v(0, 0, L / 2 - 0.15), mass: m * 0.3, color: WOOD },
+          { kind: 'ball', r: 0.12, at: v(0, 0, L - 0.12), mass: m * 0.7, color: w.color },
+        ],
+        tip: v(0, 0, L),
+      };
     case 'sword':
     default: {
       const blade = L - 0.14;
@@ -59,4 +77,16 @@ export function weaponPieces(w: WeaponDef): { pieces: WeaponPiece[]; tip: THREE.
       };
     }
   }
+}
+
+/** Left-hand items, in the forearm frame: the grip at the origin. */
+export function offhandPieces(id: string): WeaponPiece[] {
+  if (id === 'shield') {
+    // A round centre-grip shield held in the fist: its face is perpendicular to the forearm,
+    // just beyond the hand (the forearm's -Y direction), so a forward-pushed arm covers the body.
+    return [
+      { kind: 'box', hx: 0.36, hy: 0.04, hz: 0.36, at: v(0, -0.1, 0), mass: 3, color: 0x8a5a2b },
+    ];
+  }
+  return [];
 }

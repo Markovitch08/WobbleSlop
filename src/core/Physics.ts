@@ -9,7 +9,7 @@ export function initRapier(): Promise<void> {
   return ready;
 }
 
-export type TagKind = 'ground' | 'prop' | 'body' | 'weapon' | 'projectile';
+export type TagKind = 'ground' | 'prop' | 'body' | 'weapon' | 'shield' | 'projectile';
 
 /** Game metadata attached to every collider, looked up by collider handle. */
 export interface ColliderTag {
@@ -30,7 +30,7 @@ export type CollisionListener = (a: ColliderTag, b: ColliderTag, ca: RAPIER.Coll
  *   bits 1..10  "slot" of a unit (unitId % 10): a unit never collides with its own slot,
  *               so its limbs and weapon don't self-collide
  *   bits 11,12  body of team 0/1
- *   bits 13,14  weapon or projectile of team 0/1 (never hits its own team)
+ *   bits 13,14  weapon, shield or projectile of team 0/1 (never hits its own team)
  * Side effect: two teammates sharing a slot (1 in 10) can overlap. Enemies always collide.
  */
 const ALL = 0xffff;
@@ -52,6 +52,7 @@ export function collisionGroups(tag: ColliderTag): number {
       filter = ALL & ~slot & ~bit(11 + team) & ~bit(13 + team);
       break;
     case 'weapon':
+    case 'shield':
       member = slot | bit(13 + team);
       filter = ALL & ~slot & ~bit(11 + team) & ~bit(13 + team);
       break;

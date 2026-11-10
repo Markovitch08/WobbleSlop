@@ -47,6 +47,7 @@ export class Battle implements BattleContext {
   private acc = 0;
   private placements: Placement[] = [];
   private readonly pendingExplosions: Projectile[] = [];
+  private readonly pendingRemovals: Projectile[] = [];
 
   constructor(readonly map: MapData, readonly hooks: BattleHooks = {}) {
     this.resetWorld();
@@ -167,6 +168,7 @@ export class Battle implements BattleContext {
       if (p.life <= 0 || p.body.translation().y < -5) this.explode(p);
     }
     for (const p of this.pendingExplosions.splice(0)) this.explode(p);
+    for (const p of this.pendingRemovals.splice(0)) this.removeProjectile(p);
     this.projectiles = this.projectiles.filter((p) => !p.dead);
 
     if (this.phase === 'battle') {
@@ -185,7 +187,7 @@ export class Battle implements BattleContext {
         .setGravityScale(def.gravityScale).setCcdEnabled(true),
     );
     const col = this.physics.world.createCollider(
-      RAPIER.ColliderDesc.ball(def.radius).setMass(0.5).setActiveEvents(RAPIER.ActiveEvents.COLLISION_EVENTS),
+      RAPIER.ColliderDesc.ball(def.radius).setMass(def.kind === 'arrow' ? 0.1 : 0.5).setActiveEvents(RAPIER.ActiveEvents.COLLISION_EVENTS),
       body,
     );
     const p: Projectile = { body, def, owner: from, team: from.team, life: 4, dead: false };
@@ -194,7 +196,33 @@ export class Battle implements BattleContext {
     this.hooks.onProjectileCreated?.(p);
   }
 
+  /** Arrows hurt exactly what they hit, are stopped by shields, and vanish on impact. */
+  private arrowHit(p: Projectile, b: NonNullable<ReturnType<Physics['getTag']>>): void {
+    const lv = p.body.linvel();
+    const vel = new THREE.Vector3(lv.x, lv.y, lv.z);
+    const t = p.body.translation();
+    const pos = new THREE.Vector3(t.x, t.y, t.z);
+    if (b.kind === 'shield') {
+      this.emit({ type: 'block', pos, power: 0.5 });
+    } else if (b.kind === 'body' && b.team !== p.team) {
+      const { owner: victim, part } = b.ref as { owner: Unit; part: PartName };
+      const speedMult = THREE.MathUtils.clamp(vel.length() / p.def.speed, 0.5, 1.2);
+      const wasAlive = victim.alive;
+      victim.takeHit(part, p.def.damage * speedMult * (part === 'head' ? 1.5 : 1), vel.clone().setLength(p.def.blastImpulse));
+      if (wasAlive) this.emit({ type: 'hit', pos, power: 0.5, weapon: 'arrow' });
+    }
+    this.pendingRemovals.push(p);
+  }
+
+  private removeProjectile(p: Projectile): void {
+    if (p.dead) return;
+    p.dead = true;
+    p.view?.dispose();
+    this.physics.removeBody(p.body);
+  }
+
   private explode(p: Projectile): void {
+    if (p.def.kind === 'arrow') { this.removeProjectile(p); return; }
     if (p.dead) return;
     p.dead = true;
     const t = p.body.translation();
@@ -224,7 +252,9 @@ export class Battle implements BattleContext {
     if (!a || !b) return;
     if (a.kind === 'projectile') {
       const p = a.ref as Projectile;
-      if (!p.dead && b.unitId !== p.owner.id) this.pendingExplosions.push(p);
+      if (p.dead || b.unitId === p.owner.id) return;
+      if (p.def.kind === 'arrow') this.arrowHit(p, b);
+      else this.pendingExplosions.push(p);
       return;
     }
     if (a.kind !== 'weapon') return;
@@ -234,6 +264,16 @@ export class Battle implements BattleContext {
       if (attacker.id < other.id) {
         const s = attacker.tipSpeed().length() + other.tipSpeed().length();
         if (s > 3) this.emit({ type: 'clang', pos: attacker.tipWorld(), power: Math.min(1, s / 15) });
+      }
+      return;
+    }
+    if (b.kind === 'shield') {
+      // A shield soaks the whole swing for its owner: no damage to them this strike.
+      const owner = (b.ref as { owner: Unit }).owner;
+      const s = attacker.tipSpeed().length();
+      if (attacker.isStriking() && attacker.registerStrike(owner.id)) {
+        this.emit({ type: 'block', pos: attacker.tipWorld(), power: Math.min(1, s / 10) });
+        owner.takeHit('lArmL', 0, attacker.tipSpeed().setLength(attacker.weapon.knockback * 0.4));
       }
       return;
     }

@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { Game } from '../main';
 import { allUnits, deleteCustomUnit, estimateCost, getUnit, saveCustomUnit } from '../units/registry';
 import { allWeapons, getWeapon } from '../units/weapons';
-import { DEFAULT_BODY, type HatId, type UnitDef } from '../units/types';
+import { DEFAULT_BODY, type HatId, type OffhandId, type UnitDef } from '../units/types';
 import type { Unit } from '../units/Unit';
 import { sfx } from '../audio/Sfx';
 import { h, hex, unhex } from './dom';
@@ -122,6 +122,8 @@ export class Creator {
       d.role = getWeapon(d.weapon).projectile ? 'ranged' : 'melee';
       this.changed();
     });
+    const offSel = h('select', {}, ...(['none', 'shield'] as OffhandId[]).map((x) => h('option', { value: x, selected: x === (d.offhand ?? 'none') }, x)));
+    offSel.addEventListener('change', () => { d.offhand = offSel.value as OffhandId; this.changed(); });
     const hatSel = h('select', {}, ...HATS.map((x) => h('option', { value: x, selected: x === d.look.hat }, x)));
     hatSel.addEventListener('change', () => { d.look.hat = hatSel.value as HatId; this.changed(); });
     const skin = h('input', { type: 'color', value: hex(d.look.skin) }) as HTMLInputElement;
@@ -137,6 +139,7 @@ export class Creator {
       h('label', { class: 'wide' }, 'Name', nameIn),
       h('label', { class: 'wide' }, 'Template', tmpl),
       h('label', { class: 'wide' }, 'Weapon', weaponSel),
+      h('label', { class: 'wide' }, 'Off-hand', offSel),
       h('label', { class: 'wide' }, 'Hat', hatSel),
       h('label', { class: 'wide' }, 'Skin', skin),
       h('label', { class: 'wide' }, 'Fixed shirt', h('span', {}, shirtOn, ' ', shirt)),

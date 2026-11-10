@@ -17,7 +17,7 @@ import { Creator } from './ui/Creator';
 
 type Mode = 'menu' | 'editor' | 'spectate' | 'creator';
 
-const ICONS: Record<string, string> = { sword: '🗡️', club: '🏏', staff: '🔮', axe: '🪓', spear: '🔱' };
+const ICONS: Record<string, string> = { sword: '🗡️', club: '🏏', staff: '🔮', axe: '🪓', spear: '🔱', bow: '🏹', mace: '🔨' };
 const BUDGETS = [500, 1000, 1500, 3000, 6000];
 
 export class Game {
@@ -217,7 +217,7 @@ export class Game {
           onclick: () => this.go(() => this.selectUnit(d)),
         },
         h('span', { class: 'key' }, i < 9 ? String(i + 1) : ''),
-        h('span', { class: 'icon' }, d.custom ? '⭐' : ICONS[d.weapon] ?? '❔'),
+        h('span', { class: 'icon' }, d.custom ? '⭐' : d.offhand === 'shield' ? '🛡️' : ICONS[d.weapon] ?? '❔'),
         d.name,
         h('span', { class: 'cost' }, `${d.cost} 🪙`)));
       });
@@ -437,6 +437,13 @@ export class Game {
         this.effects.explode(e.pos, e.radius);
         sfx.play('explode', e.pos);
         break;
+      case 'shoot':
+        sfx.play('bow', e.pos);
+        break;
+      case 'block':
+        this.effects.clang(e.pos);
+        sfx.play('block', e.pos, e.power);
+        break;
       case 'death':
         sfx.play('death', e.pos);
         break;
@@ -458,7 +465,7 @@ export class Game {
     for (const u of b.units) (u.view as UnitView | undefined)?.sync(dt, alpha);
     for (const p of b.projectiles) {
       p.view?.sync(alpha);
-      if (b.timeScale > 0) this.effects.trail(p);
+      if (b.timeScale > 0 && p.def.kind === 'fireball') this.effects.trail(p);
     }
     this.effects.update(dt * Math.max(0.25, Math.min(1, b.timeScale || 0.0001)));
     this.cam.enabled = this.mode !== 'menu';

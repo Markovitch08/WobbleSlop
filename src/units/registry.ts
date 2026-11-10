@@ -22,7 +22,7 @@ export function estimateCost(def: UnitDef): number {
   const w = getWeapon(def.weapon);
   const dps = (w.projectile ? w.projectile.damage * 1.4 : w.damage) / (w.cooldown + w.windup + w.strike);
   const s = def.stats;
-  const raw = (s.health / 100) * 40 + dps * 1.4 + s.speed * 6 + s.balance * 15 + s.strength * 15 + def.body.size * 25;
+  const raw = (s.health / 100) * 40 + dps * 1.4 + s.speed * 6 + s.balance * 15 + s.strength * 15 + def.body.size * 25 + (def.offhand === 'shield' ? 60 : 0);
   return Math.max(20, Math.round((raw * 0.63) / 10) * 10);
 }
 
@@ -77,4 +77,18 @@ registerUnit({
   body: { ...DEFAULT_BODY, size: 0.92, mass: 0.8, torsoWidth: 0.78, shoulders: 0.9, belly: 0.95, limbThickness: 0.72, legLength: 1.2, armLength: 1.12, headSize: 1.15 },
   stats: { health: 70, speed: 2.8, balance: 0.85, strength: 0.8 },
   look: { skin: 0xf6d5b5, hat: 'wizard' },
+});
+registerUnit({
+  id: 'archer', name: 'Archer', description: 'Shoots arrows from far away. Arrows are stopped by shields.', cost: 120,
+  role: 'ranged', weapon: 'bow',
+  body: { ...DEFAULT_BODY, size: 0.97, torsoWidth: 0.9, shoulders: 1.05, belly: 0.9, limbThickness: 0.85, legLength: 1.05 },
+  stats: { health: 70, speed: 3.1, balance: 0.95, strength: 0.9 },
+  look: { skin: 0xe9b98f, hat: 'cap' },
+});
+registerUnit({
+  id: 'shield', name: 'Shield Guy', description: 'Tanky. His shield blocks swings and arrows.', cost: 150,
+  role: 'melee', weapon: 'mace', offhand: 'shield',
+  body: { ...DEFAULT_BODY, size: 1.08, mass: 1.2, torsoWidth: 1.15, shoulders: 1.25, belly: 1.1, limbThickness: 1.2, legLength: 0.9 },
+  stats: { health: 160, speed: 2.6, balance: 1.3, strength: 1.1 },
+  look: { skin: 0xc68d63, hat: 'helmet' },
 });

@@ -62,14 +62,20 @@ Physics runs at a fixed 60 Hz with 8 solver iterations (`src/core/Physics.ts`). 
 between physics steps, so motion stays smooth on 120/144 Hz screens and in slow motion. Self-collision and friendly fire are filtered with
 Rapier collision-group bitmasks inside the wasm solver, with no per-contact JS callbacks.
 
-## Look and body types
+## Units, look and body types
 
-Low-poly style: flat-shaded faceted primitives with flat colours. Limbs are tapered hexagonal prisms, heads are
-icosahedrons, hands and feet are blocks, and the torso is a lathe whose silhouette comes from the body type
-(`shoulders`, `belly`). Terrain uses one colour per triangle facet.
-The three units have distinct builds: **Sword Guy** is athletic (broad shoulders, slim waist), **Club Guy** is a
-heavy brute (1.2× size, big belly, thick limbs, short legs), and **Magic Guy** is tall and skinny (long legs and arms,
-thin limbs, big head). All of these are sliders in the Unit Creator.
+| Unit | Build | Weapon | Notes |
+|---|---|---|---|
+| Sword Guy | athletic | sword | quick slashes |
+| Club Guy | heavy brute, 1.2× size | club | slow, huge knockback |
+| Magic Guy | tall and skinny | fire staff | exploding fireballs from range |
+| Archer | lean | bow | arrows hit exactly what they strike; long range |
+| Shield Guy | stocky | mace + round shield | the shield physically blocks swings and arrows |
+
+Style: soft, rounded "toy" characters. Each has a smooth bean torso whose silhouette comes from the body type
+(`shoulders`, `belly`), capsule limbs, ball hands, rounded boots, and a big round head with dot eyes and a smile.
+Geometries are cached and shared, so the round look costs about the same as simple shapes.
+Everything (body shape, weapon, off-hand shield, hat, colours) can be changed in the Unit Creator.
 
 ## Architecture
 
@@ -77,7 +83,7 @@ thin limbs, big head). All of these are sliders in the Unit Creator.
 src/core/Physics.ts       Rapier world wrapper: fixed step, collider tags, collision groups, events
 src/units/types.ts        UnitDef / WeaponDef data model (JSON-serialisable)
 src/units/registry.ts     built-in units + custom (localStorage) units, cost estimate
-src/units/weapons.ts      weapon registry (sword, club, staff, axe, spear)
+src/units/weapons.ts      weapon registry (sword, club, staff, axe, spear, bow, mace)
 src/units/Ragdoll.ts      active ragdoll + balance/muscle controller
 src/units/Unit.ts         health, weapon body, attack timeline, projectiles, death
 src/ai/Brain.ts           target selection, spacing, ranged kiting, attack trigger
@@ -92,7 +98,9 @@ scripts/sim.ts            headless simulation + checks
 ### Extending
 - **New unit**: `registerUnit({...})` in `src/units/registry.ts`, or build one in the Unit Creator.
 - **New weapon**: `registerWeapon({...})` in `src/units/weapons.ts` and give it a shape in `src/units/weaponShapes.ts`.
-  Attack styles (`slash`, `overhead`, `cast`) are pose tables in `src/units/Unit.ts`.
+  Attack styles (`slash`, `overhead`, `cast`, `shoot`) are pose tables in `src/units/Unit.ts`.
+  Projectiles are either `fireball` (explodes) or `arrow` (direct hit).
+- **New off-hand item**: add it to `offhandPieces` in `src/units/weaponShapes.ts` and to `OffhandId`.
 - **New creator option**: add a row to `SLIDERS` in `src/ui/Creator.ts`.
 - **New map**: write another `create…(): MapData` in `src/world/MapData.ts`.
 - **New sound**: add a voice to `src/audio/Sfx.ts`.
