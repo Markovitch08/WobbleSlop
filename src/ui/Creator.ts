@@ -17,6 +17,8 @@ const SLIDERS: Slider[] = [
   { key: 'mass', label: 'Heaviness', min: 0.5, max: 2.5, step: 0.05, get: (d) => d.body.mass, set: (d, v) => { d.body.mass = v; } },
   { key: 'head', label: 'Head size', min: 0.6, max: 1.8, step: 0.05, get: (d) => d.body.headSize, set: (d, v) => { d.body.headSize = v; } },
   { key: 'torso', label: 'Chonk', min: 0.7, max: 1.6, step: 0.05, get: (d) => d.body.torsoWidth, set: (d, v) => { d.body.torsoWidth = v; } },
+  { key: 'shoulders', label: 'Shoulders', min: 0.6, max: 1.8, step: 0.05, get: (d) => d.body.shoulders, set: (d, v) => { d.body.shoulders = v; } },
+  { key: 'belly', label: 'Belly', min: 0.6, max: 1.9, step: 0.05, get: (d) => d.body.belly, set: (d, v) => { d.body.belly = v; } },
   { key: 'limb', label: 'Limb thickness', min: 0.6, max: 1.6, step: 0.05, get: (d) => d.body.limbThickness, set: (d, v) => { d.body.limbThickness = v; } },
   { key: 'legs', label: 'Leg length', min: 0.7, max: 1.4, step: 0.05, get: (d) => d.body.legLength, set: (d, v) => { d.body.legLength = v; } },
   { key: 'arms', label: 'Arm length', min: 0.7, max: 1.5, step: 0.05, get: (d) => d.body.armLength, set: (d, v) => { d.body.armLength = v; } },

@@ -56,24 +56,25 @@ export function loadCustomUnits(): void {
   }
 }
 
+// Three distinct builds: athletic swordsman, stocky heavy brute, tall skinny mage.
 registerUnit({
-  id: 'sword', name: 'Sword Guy', description: 'Balanced fighter. Quick slashes.', cost: 100,
+  id: 'sword', name: 'Sword Guy', description: 'Athletic all-rounder. Quick slashes.', cost: 100,
   role: 'melee', weapon: 'sword',
-  body: { ...DEFAULT_BODY },
+  body: { ...DEFAULT_BODY, size: 1.0, shoulders: 1.3, belly: 0.85, torsoWidth: 1.0, legLength: 1.0 },
   stats: { health: 100, speed: 3.2, balance: 1, strength: 1 },
   look: { skin: 0xf2c79c, hat: 'helmet' },
 });
 registerUnit({
   id: 'club', name: 'Club Guy', description: 'Big, slow, sends people flying.', cost: 140,
   role: 'melee', weapon: 'club',
-  body: { ...DEFAULT_BODY, size: 1.15, mass: 1.4, torsoWidth: 1.25, limbThickness: 1.25 },
+  body: { ...DEFAULT_BODY, size: 1.2, mass: 1.4, torsoWidth: 1.3, shoulders: 1.15, belly: 1.45, limbThickness: 1.4, legLength: 0.82, armLength: 1.1, headSize: 0.85 },
   stats: { health: 170, speed: 2.5, balance: 1.15, strength: 1.4 },
   look: { skin: 0xd9a27a, hat: 'viking' },
 });
 registerUnit({
   id: 'magic', name: 'Magic Guy', description: 'Lobs exploding fireballs from range. Fragile.', cost: 180,
   role: 'ranged', weapon: 'staff',
-  body: { ...DEFAULT_BODY, size: 0.95, mass: 0.85, torsoWidth: 0.9, limbThickness: 0.85 },
+  body: { ...DEFAULT_BODY, size: 0.92, mass: 0.8, torsoWidth: 0.78, shoulders: 0.9, belly: 0.95, limbThickness: 0.72, legLength: 1.2, armLength: 1.12, headSize: 1.15 },
   stats: { health: 70, speed: 2.8, balance: 0.85, strength: 0.8 },
   look: { skin: 0xf6d5b5, hat: 'wizard' },
 });

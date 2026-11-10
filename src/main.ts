@@ -59,6 +59,10 @@ export class Game {
       onUnitCreated: (u) => new UnitView(u, this.r.scene),
       onProjectileCreated: (p) => new ProjectileView(p, this.r.scene),
       onEvent: (e) => this.onBattleEvent(e),
+      onBeforeStep: () => {
+        for (const u of this.battle.units) (u.view as UnitView | undefined)?.capture();
+        for (const p of this.battle.projectiles) p.view?.capture();
+      },
     });
     this.cam = new CameraController(this.r.camera, this.r.renderer.domElement, this.map.heightAt);
     this.creator = new Creator(this);
@@ -450,9 +454,10 @@ export class Game {
     this.last = now;
     const b = this.battle;
     b.update(dt);
-    for (const u of b.units) (u.view as UnitView | undefined)?.sync(dt);
+    const alpha = b.phase === 'placement' ? 1 : b.alpha;
+    for (const u of b.units) (u.view as UnitView | undefined)?.sync(dt, alpha);
     for (const p of b.projectiles) {
-      p.view?.sync();
+      p.view?.sync(alpha);
       if (b.timeScale > 0) this.effects.trail(p);
     }
     this.effects.update(dt * Math.max(0.25, Math.min(1, b.timeScale || 0.0001)));

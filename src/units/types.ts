@@ -52,6 +52,9 @@ export interface BodyParams {
   limbThickness: number;
   legLength: number;
   armLength: number;
+  /** Visual torso shape: width at the shoulders and at the belly (1 = neutral). */
+  shoulders: number;
+  belly: number;
 }
 
 export interface UnitStats {
@@ -85,5 +88,5 @@ export interface UnitDef {
 }
 
 export const DEFAULT_BODY: BodyParams = {
-  size: 1, mass: 1, headSize: 1, torsoWidth: 1, limbThickness: 1, legLength: 1, armLength: 1,
+  size: 1, mass: 1, headSize: 1, torsoWidth: 1, limbThickness: 1, legLength: 1, armLength: 1, shoulders: 1, belly: 1,
 };

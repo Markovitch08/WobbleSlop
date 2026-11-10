@@ -56,11 +56,11 @@ export class CameraController {
       this.dragDistance += Math.abs(dx) + Math.abs(dy);
       if (this.mode === 'cinematic') this.mode = 'free';
       if (this.mode === 'follow') {
-        this.followYaw -= dx * 0.005;
-        this.pitch = THREE.MathUtils.clamp(this.pitch - dy * 0.004, -1.3, 0.3);
+        this.followYaw += dx * 0.005;
+        this.pitch = THREE.MathUtils.clamp(this.pitch + dy * 0.004, -1.3, 0.3);
       } else {
-        this.yaw -= dx * 0.004;
-        this.pitch = THREE.MathUtils.clamp(this.pitch - dy * 0.004, -1.5, 1.2);
+        this.yaw += dx * 0.004;
+        this.pitch = THREE.MathUtils.clamp(this.pitch + dy * 0.004, -1.5, 1.2);
       }
     });
     dom.addEventListener('wheel', (e) => {

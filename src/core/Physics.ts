@@ -63,7 +63,7 @@ export function collisionGroups(tag: ColliderTag): number {
   return ((member << 16) | filter) >>> 0;
 }
 
-/** Fixed simulation rate. 60 Hz with 4 solver iterations passes the balance checks in scripts/sim.ts at half the cost of 120 Hz. */
+/** Fixed simulation rate. 60 Hz with 8 solver iterations; rendering interpolates between steps (see UnitView). */
 export const PHYSICS_HZ = 60;
 export const PHYSICS_DT = 1 / PHYSICS_HZ;
 export const GRAVITY = 9.81;
@@ -84,7 +84,7 @@ export class Physics {
   constructor() {
     this.world = new RAPIER.World({ x: 0, y: -GRAVITY, z: 0 });
     this.world.timestep = PHYSICS_DT;
-    this.world.numSolverIterations = 4;
+    this.world.numSolverIterations = 8;
     this.events = new RAPIER.EventQueue(true);
   }
 

@@ -47,12 +47,14 @@ const POSES: Record<AttackStyle, StylePoses> = {
   },
 };
 
-const CHEER: ArmPose = { pitch: -2.9, roll: -0.35, yaw: 0, bend: -0.3, stiffness: 0.9 };
+const CHEER: ArmPose = { pitch: -2.4, roll: -0.6, yaw: 0, bend: -0.4, stiffness: 0.9 };
 const _v = new THREE.Vector3();
 const _v2 = new THREE.Vector3();
 const _q = new THREE.Quaternion();
 
 let nextId = 1;
+/** Weapon arm segments weigh at least this fraction of the held weapon. */
+const ARM_MASS_FLOOR = 1.2;
 
 export class Unit {
   readonly id = nextId++;
@@ -85,7 +87,7 @@ export class Unit {
   private attackTarget: Unit | null = null;
 
   /** Optional render hook set by the view layer. */
-  view?: { sync(): void; dispose(): void; flash(): void };
+  view?: { sync(dt?: number, alpha?: number): void; capture(): void; dispose(): void; flash(): void };
 
   constructor(ctx: BattleContext, def: UnitDef, team: number, position: THREE.Vector3, yaw: number) {
     this.ctx = ctx;
@@ -105,7 +107,10 @@ export class Unit {
     const rot = this.ragdoll.parts.lArmR.body.rotation();
     const wb = ctx.physics.world.createRigidBody(
       RAPIER.RigidBodyDesc.dynamic().setTranslation(hand.x, hand.y, hand.z).setRotation(rot)
-        .setCcdEnabled(true).setAngularDamping(0.4).setCanSleep(false),
+        .setCcdEnabled(true).setAngularDamping(0.4).setCanSleep(false)
+        // Held weapons ignore gravity (TABS-style "just hold this object" helper), so the arm
+        // muscles only fight inertia, not a heavy lever; full gravity once dropped on death.
+        .setGravityScale(0),
     );
     const toZ = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), Math.PI / 2);
     for (const p of pieces) {
@@ -122,7 +127,16 @@ export class Unit {
     const jd = RAPIER.JointData.fixed(this.ragdoll.handLocal(true), { x: 0, y: 0, z: 0, w: 1 }, { x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 0, w: 1 });
     this.weaponJoint = ctx.physics.world.createImpulseJoint(jd, this.ragdoll.parts.lArmR.body, wb, true);
     this.weaponJoint.setContactsEnabled(false);
-    this.ragdoll.handLoadR = this.weapon.mass / 2.5;
+    // A very thin arm can't steady a heavy weapon (the light link between torso and
+    // forearm+weapon buzzes), so the weapon arm gets a mass floor relative to the weapon.
+    for (const name of ['uArmR', 'lArmR'] as const) {
+      const part = this.ragdoll.parts[name];
+      const floor = this.weapon.mass * ARM_MASS_FLOOR;
+      if (part.mass < floor) {
+        part.body.collider(0).setMass(floor);
+        part.mass = floor;
+      }
+    }
   }
 
   get pos(): THREE.Vector3 {
@@ -289,6 +303,7 @@ export class Unit {
     this.ragdoll.goLimp();
     if (this.weaponJoint) {
       this.ctx.physics.world.removeImpulseJoint(this.weaponJoint, true);
+      this.weaponBody.setGravityScale(1, true);
       this.weaponJoint = null;
     }
     this.ctx.emit({ type: 'death', pos: this.ragdoll.pos('head'), unit: this });

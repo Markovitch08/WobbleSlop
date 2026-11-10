@@ -51,7 +51,32 @@ for (const def of allUnits()) {
   b.dispose();
 }
 
-// 3. A full AI-vs-AI battle resolves with a winner.
+// 3. Limbs move smoothly: mean per-step change in limb angular velocity (rad/s) while walking.
+//    The old explicit PD controller scored ~50 here (limbs buzzing); smooth is well under 3.
+for (const def of allUnits()) {
+  const b = new Battle(map);
+  const u = b.addUnit(def, 0, -20, 0)!;
+  b.addUnit('sword', 1, 30, 0);
+  b.start();
+  const prev = new Map<unknown, number[]>();
+  let sum = 0;
+  let n = 0;
+  for (let i = 0; i < PHYSICS_HZ * 4; i++) {
+    b.stepOnce();
+    if (i < PHYSICS_HZ) continue;
+    for (const body of [...u.ragdoll.list.map((p) => p.body), u.weaponBody]) {
+      const w = body.angvel();
+      const pr = prev.get(body);
+      if (pr) { sum += Math.hypot(w.x - pr[0], w.y - pr[1], w.z - pr[2]); n++; }
+      prev.set(body, [w.x, w.y, w.z]);
+    }
+  }
+  const jitter = sum / n;
+  check(`${def.id} limbs smooth`, jitter < 3, `jitter=${jitter.toFixed(2)} rad/s per step`);
+  b.dispose();
+}
+
+// 4. A full AI-vs-AI battle resolves with a winner.
 {
   const b = new Battle(map);
   const ids = allUnits().map((d) => d.id);

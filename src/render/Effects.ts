@@ -124,10 +124,19 @@ export class ProjectileView {
     p.view = this;
     this.sync();
   }
-  sync(): void {
+  private readonly prev = new THREE.Vector3();
+  private hasPrev = false;
+  capture(): void {
     const t = this.p.body.translation();
-    this.core.position.set(t.x, t.y, t.z);
-    this.halo.position.set(t.x, t.y, t.z);
+    this.prev.set(t.x, t.y, t.z);
+    this.hasPrev = true;
+  }
+  sync(alpha = 1): void {
+    const t = this.p.body.translation();
+    const cur = new THREE.Vector3(t.x, t.y, t.z);
+    if (this.hasPrev) cur.lerp(this.prev, 1 - alpha);
+    this.core.position.copy(cur);
+    this.halo.position.copy(cur);
     this.halo.scale.setScalar(this.p.def.radius * (1.6 + Math.random() * 0.5));
   }
   dispose(): void {

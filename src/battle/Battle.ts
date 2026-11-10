@@ -20,13 +20,15 @@ export interface Projectile {
   team: number;
   life: number;
   dead: boolean;
-  view?: { sync(): void; dispose(): void };
+  view?: { sync(alpha?: number): void; capture(): void; dispose(): void };
 }
 
 export interface BattleHooks {
   onUnitCreated?(u: Unit): void;
   onProjectileCreated?(p: Projectile): void;
   onEvent?(e: BattleEvent): void;
+  /** Called before every physics step (views snapshot poses here for interpolation). */
+  onBeforeStep?(): void;
 }
 
 /**
@@ -146,7 +148,13 @@ export class Battle implements BattleContext {
     if (n === maxSteps) this.acc = 0;
   }
 
+  /** Fraction (0..1) of the way between the last physics step and the next one, for render interpolation. */
+  get alpha(): number {
+    return Math.min(1, this.acc / PHYSICS_DT);
+  }
+
   stepOnce(): void {
+    this.hooks.onBeforeStep?.();
     const over = this.phase === 'over';
     // Units only pick fights once the battle is on (sandbox units idle unless an enemy exists).
     for (const u of this.units) think(u, this.units, over);

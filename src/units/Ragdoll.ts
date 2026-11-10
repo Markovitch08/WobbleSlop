@@ -49,6 +49,9 @@ export interface ArmPose {
 
 export const ARM_REST: ArmPose = { pitch: 0.05, roll: -0.12, yaw: 0, bend: -0.25, stiffness: 0.6 };
 
+/** Tuning knobs for the muscle controller (exported so the headless tuner can sweep them). */
+export const PD = { chain: 2.5 };
+
 const _q = new THREE.Quaternion();
 const _q2 = new THREE.Quaternion();
 const _q3 = new THREE.Quaternion();
@@ -201,9 +204,6 @@ export class Ragdoll {
   grounded = false;
   private phase = 0;
   private gaitAmp = 0;
-  /** Weight of extra mass hanging on each hand (weapons), for PD scaling. */
-  handLoadR = 0;
-  handLoadL = 0;
 
   constructor(opts: RagdollOptions) {
     this.physics = opts.physics;
@@ -377,11 +377,11 @@ export class Ragdoll {
 
     // ---- arms ----
     const sway = amp * 0.7 * Math.sin(this.phase);
-    this.driveArm(this.armR, P.uArmR, P.lArmR, -1, this.handLoadR, str, sway);
-    this.driveArm(this.armL, P.uArmL, P.lArmL, 1, this.handLoadL, str, -sway);
+    this.driveArm(this.armR, P.uArmR, P.lArmR, -1, str, sway);
+    this.driveArm(this.armL, P.uArmL, P.lArmL, 1, str, -sway);
   }
 
-  private driveArm(pose: ArmPose, upper: Part, lower: Part, mirror: number, load: number, str: number, sway: number) {
+  private driveArm(pose: ArmPose, upper: Part, lower: Part, mirror: number, str: number, sway: number) {
     const torsoQ = quatOf(this.parts.torso.body.rotation(), _q3);
     // roll is authored for the right arm (mirror -1); the left arm flips it.
     const roll = -pose.roll * mirror;
@@ -393,19 +393,23 @@ export class Ragdoll {
       .multiply(_q2.setFromAxisAngle(X, pitch));
     const k = 520 * pose.stiffness * str;
     const dmp = 30 * Math.sqrt(pose.stiffness * str);
-    const loadFactor = 1 + load * 1.4;
-    this.drive(upper, _q, k, dmp, this.parts.torso, 0.35, 12, loadFactor);
+    this.drive(upper, _q, k, dmp, this.parts.torso, 0.35, 12);
     quatOf(upper.body.rotation(), _q).multiply(_q2.setFromAxisAngle(X, pose.bend));
-    this.drive(lower, _q, k, dmp, upper, 0.5, 12, 1 + load * 2.2);
+    this.drive(lower, _q, k, dmp, upper, 0.5, 12);
   }
 
   /**
-   * PD torque toward a world-space target orientation.
-   * torque = I * (kp * angleError - kd * relativeAngularVelocity), applied as an impulse,
-   * with an optional equal-and-opposite share on the parent so limbs push the body around.
+   * "Stable PD" muscle toward a world-space target orientation (Tan et al. 2011 style):
+   *   dw = dt * (kp * angleError - kd * relativeAngularVelocity) / (1 + dt*kd + dt^2*kp)
+   * The denominator makes the step implicit, so a limb can never overshoot its target
+   * within one physics step, which is what used to make limbs buzz at high gains.
+   * The velocity change is turned into an impulse with the body's real inertia tensor
+   * (times a chain factor for the limbs hanging off it), with an optional equal-and-opposite
+   * share on the parent so limbs push the body around.
    */
-  private drive(part: Part, target: THREE.Quaternion, kp: number, kd: number, parent: Part | undefined, reaction: number, maxAccelK: number, inertiaMul = 1) {
+  private drive(part: Part, target: THREE.Quaternion, kp: number, kd: number, parent: Part | undefined, reaction: number, maxDwK: number) {
     const b = part.body;
+    const dt = PHYSICS_DT;
     quatOf(b.rotation(), _q2).invert();
     const qe = _q2.premultiply(target); // target * inverse(current)
     if (qe.w < 0) qe.set(-qe.x, -qe.y, -qe.z, -qe.w);
@@ -420,15 +424,18 @@ export class Ragdoll {
       const pav = parent.body.angvel();
       _w.x -= pav.x; _w.y -= pav.y; _w.z -= pav.z;
     }
-    const I = part.inertia * inertiaMul;
-    _e.multiplyScalar(kp).addScaledVector(_w, -kd);
-    // Cap angular acceleration so huge errors (e.g. after a big hit) don't explode.
-    const maxA = kp * maxAccelK * 0.25;
-    if (_e.lengthSq() > maxA * maxA) _e.setLength(maxA);
-    _e.multiplyScalar(I * PHYSICS_DT);
-    b.applyTorqueImpulse({ x: _e.x, y: _e.y, z: _e.z }, true);
+    _e.multiplyScalar(kp * dt).addScaledVector(_w, -kd * dt).multiplyScalar(1 / (1 + dt * kd + dt * dt * kp));
+    // Cap the per-step velocity change so huge errors (e.g. after a big hit) stay floppy.
+    const maxDw = maxDwK * 2.5;
+    if (_e.lengthSq() > maxDw * maxDw) _e.setLength(maxDw);
+    const M = b.effectiveAngularInertia();
+    const k = PD.chain;
+    const ix = (M.m11 * _e.x + M.m12 * _e.y + M.m13 * _e.z) * k;
+    const iy = (M.m12 * _e.x + M.m22 * _e.y + M.m23 * _e.z) * k;
+    const iz = (M.m13 * _e.x + M.m23 * _e.y + M.m33 * _e.z) * k;
+    b.applyTorqueImpulse({ x: ix, y: iy, z: iz }, true);
     if (parent && reaction > 0) {
-      parent.body.applyTorqueImpulse({ x: -_e.x * reaction, y: -_e.y * reaction, z: -_e.z * reaction }, true);
+      parent.body.applyTorqueImpulse({ x: -ix * reaction, y: -iy * reaction, z: -iz * reaction }, true);
     }
   }
 

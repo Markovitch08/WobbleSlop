@@ -9,7 +9,7 @@ Inspired by how TABS does things (active ragdolls, a battle editor, a unit creat
 npm install
 npm run dev        # dev server with hot reload
 npm run build      # -> dist/index.html, ONE self-contained file (wasm inlined), open it directly
-npm test           # headless checks: units stand, walk, and an AI battle resolves
+npm test           # headless checks: units stand, walk, limbs stay smooth, and an AI battle resolves
 ```
 
 `dist/index.html` runs straight from disk, so you can double-click it or host it anywhere.
@@ -26,7 +26,7 @@ The included workflow `.github/workflows/pages.yml` publishes it to GitHub Pages
 | | |
 |---|---|
 | WASD / arrows | move camera |
-| Right- or middle-drag | look (orbit in follow mode) |
+| Right- or middle-drag | look (inverted: drag the world; orbit in follow mode) |
 | Wheel | dolly / zoom |
 | Space or E / Q or Ctrl | up / down |
 | Shift | fast |
@@ -46,16 +46,30 @@ joined by spherical joints. Nothing is animated kinematically; all motion comes 
 1. **Standing handler**: a ray from the pelvis finds the ground. While upright, a spring-damper holds the pelvis
    at standing height like marionette strings, and a **head-up / feet-down** force pair rights the body.
    Both fade out as the unit tips over, so big hits really knock units down.
-2. **PD muscles**: each limb is torqued toward a target orientation with
-   `τ = I · (kp · angleError − kd · relativeAngularVelocity)`, with an optional reaction torque on the parent.
+2. **Stable-PD muscles**: each limb's angular velocity is changed by
+   `Δω = dt·(kp·angleError − kd·relativeAngularVelocity) / (1 + dt·kd + dt²·kp)` and applied as an impulse through
+   the body's real inertia tensor. The implicit denominator means a limb can never overshoot its target in one step,
+   which is what made limbs buzz in the first version. `npm test` measures this (limb "jitter") and fails if it regresses.
+   Held weapons ignore gravity while held (a TABS-style "just hold this object" helper), and the weapon arm has a mass
+   floor relative to its weapon, so even skinny arms hold heavy weapons steadily.
 3. **Procedural gait**: thigh and knee targets follow a sine walk cycle driven by intended and actual speed.
 4. **Attacks**: the arm switches between guard, windup and strike poses with stronger muscles on the strike,
    and the weapon tip is pulled toward the target (TABS-like) so swings connect.
 5. **Balance, strength and stagger** scale all of the above. Hits add stagger, which weakens the muscles
    for a moment (more wobble). On death the controller switches off, the weapon joint is released, and the unit goes limp.
 
-Physics runs at a fixed 60 Hz (`src/core/Physics.ts`). Self-collision and friendly fire are filtered with
+Physics runs at a fixed 60 Hz with 8 solver iterations (`src/core/Physics.ts`). Rendering interpolates
+between physics steps, so motion stays smooth on 120/144 Hz screens and in slow motion. Self-collision and friendly fire are filtered with
 Rapier collision-group bitmasks inside the wasm solver, with no per-contact JS callbacks.
+
+## Look and body types
+
+Low-poly style: flat-shaded faceted primitives with flat colours. Limbs are tapered hexagonal prisms, heads are
+icosahedrons, hands and feet are blocks, and the torso is a lathe whose silhouette comes from the body type
+(`shoulders`, `belly`). Terrain uses one colour per triangle facet.
+The three units have distinct builds: **Sword Guy** is athletic (broad shoulders, slim waist), **Club Guy** is a
+heavy brute (1.2× size, big belly, thick limbs, short legs), and **Magic Guy** is tall and skinny (long legs and arms,
+thin limbs, big head). All of these are sliders in the Unit Creator.
 
 ## Architecture
 
