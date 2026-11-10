@@ -23,8 +23,48 @@ export interface ColliderTag {
 
 export type CollisionListener = (a: ColliderTag, b: ColliderTag, ca: RAPIER.Collider, cb: RAPIER.Collider) => void;
 
-/** Fixed simulation rate. 120 Hz keeps light limbs on heavy bodies stable under strong PD torques. */
-export const PHYSICS_HZ = 120;
+/*
+ * Collision filtering with Rapier's 16-bit interaction groups (membership << 16 | filter),
+ * evaluated inside the wasm solver, so no per-pair JS callbacks:
+ *   bit 0       static world
+ *   bits 1..10  "slot" of a unit (unitId % 10): a unit never collides with its own slot,
+ *               so its limbs and weapon don't self-collide
+ *   bits 11,12  body of team 0/1
+ *   bits 13,14  weapon or projectile of team 0/1 (never hits its own team)
+ * Side effect: two teammates sharing a slot (1 in 10) can overlap. Enemies always collide.
+ */
+const ALL = 0xffff;
+const SLOTS = 10;
+const bit = (n: number) => 1 << n;
+
+export function collisionGroups(tag: ColliderTag): number {
+  let member = 0;
+  let filter = ALL;
+  const team = tag.team ?? 0;
+  const slot = tag.unitId !== undefined ? bit(1 + (tag.unitId % SLOTS)) : 0;
+  switch (tag.kind) {
+    case 'ground':
+    case 'prop':
+      member = bit(0);
+      break;
+    case 'body':
+      member = slot | bit(11 + team);
+      filter = ALL & ~slot & ~bit(11 + team) & ~bit(13 + team);
+      break;
+    case 'weapon':
+      member = slot | bit(13 + team);
+      filter = ALL & ~slot & ~bit(11 + team) & ~bit(13 + team);
+      break;
+    case 'projectile':
+      member = bit(13 + team);
+      filter = ALL & ~bit(11 + team) & ~bit(13 + team);
+      break;
+  }
+  return ((member << 16) | filter) >>> 0;
+}
+
+/** Fixed simulation rate. 60 Hz with 4 solver iterations passes the balance checks in scripts/sim.ts at half the cost of 120 Hz. */
+export const PHYSICS_HZ = 60;
 export const PHYSICS_DT = 1 / PHYSICS_HZ;
 export const GRAVITY = 9.81;
 
@@ -38,37 +78,20 @@ export class Physics {
   private readonly events: RAPIER.EventQueue;
   private readonly tags = new Map<number, ColliderTag>();
   private readonly listeners: CollisionListener[] = [];
-  private readonly hooks: RAPIER.PhysicsHooks;
   /** Simulated seconds since creation. */
   time = 0;
 
   constructor() {
     this.world = new RAPIER.World({ x: 0, y: -GRAVITY, z: 0 });
     this.world.timestep = PHYSICS_DT;
-    this.world.numSolverIterations = 6;
+    this.world.numSolverIterations = 4;
     this.events = new RAPIER.EventQueue(true);
-    this.hooks = {
-      filterContactPair: (h1, h2) => (this.shouldCollide(h1, h2) ? RAPIER.SolverFlags.COMPUTE_IMPULSE : null),
-      filterIntersectionPair: (h1, h2) => this.shouldCollide(h1, h2),
-    };
   }
 
-  private shouldCollide(h1: number, h2: number): boolean {
-    const a = this.tags.get(h1);
-    const b = this.tags.get(h2);
-    if (!a || !b) return true;
-    if (a.unitId !== undefined && a.unitId === b.unitId) return false; // same unit never self-collides
-    const friendly = a.team !== undefined && a.team === b.team;
-    if (friendly && (a.kind === 'weapon' || b.kind === 'weapon')) return false;
-    if (friendly && (a.kind === 'projectile' || b.kind === 'projectile')) return false;
-    return true;
-  }
-
+  /** Tag a collider with game metadata and set its collision groups from it. */
   tag(collider: RAPIER.Collider, tag: ColliderTag): void {
     this.tags.set(collider.handle, tag);
-    if (tag.kind !== 'ground' && tag.kind !== 'prop') {
-      collider.setActiveHooks(RAPIER.ActiveHooks.FILTER_CONTACT_PAIRS);
-    }
+    collider.setCollisionGroups(collisionGroups(tag));
   }
 
   getTag(collider: RAPIER.Collider | number): ColliderTag | undefined {
@@ -85,7 +108,7 @@ export class Physics {
   }
 
   step(): void {
-    this.world.step(this.events, this.hooks);
+    this.world.step(this.events);
     this.time += PHYSICS_DT;
     this.events.drainCollisionEvents((h1, h2, started) => {
       if (!started) return;

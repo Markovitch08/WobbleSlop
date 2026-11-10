@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WobbleSlop</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Luckiest+Guy&family=Nunito:wght@600;800&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --red: #d8433a; --blue: #3a72d8; --ink: #2a1f14; --paper: #fff7e6; --gold: #f2b632;
+      --panel: rgba(255, 247, 230, 0.94); --shadow: 0 4px 0 rgba(0,0,0,0.25);
+      --display: 'Luckiest Guy', Impact, 'Arial Black', sans-serif;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; overflow: hidden; background: #9fd0f5; font-family: 'Nunito', system-ui, sans-serif; color: var(--ink); user-select: none; }
+    canvas { display: block; }
+    #ui { position: fixed; inset: 0; pointer-events: none; }
+    #ui > * { pointer-events: auto; }
+    .hidden { display: none !important; }
+    button {
+      font-family: var(--display); font-size: 18px; letter-spacing: 1px; color: var(--ink);
+      background: var(--paper); border: 3px solid var(--ink); border-radius: 12px; padding: 8px 14px;
+      box-shadow: var(--shadow); cursor: pointer; transition: transform .08s;
+    }
+    button:hover { transform: translateY(-2px) rotate(-1deg); background: #fff; }
+    button:active { transform: translateY(2px); box-shadow: none; }
+    button.primary { background: var(--gold); }
+    button.on { background: var(--ink); color: var(--paper); }
+    button.red { background: var(--red); color: #fff; }
+    button.blue { background: var(--blue); color: #fff; }
+    .panel { background: var(--panel); border: 3px solid var(--ink); border-radius: 16px; box-shadow: 0 6px 0 rgba(0,0,0,0.25); }
+
+    /* ---- loading ---- */
+    #loading { position: fixed; inset: 0; display: grid; place-items: center; background: #9fd0f5; font-family: var(--display); font-size: 42px; color: #fff; text-shadow: 3px 3px 0 var(--ink); z-index: 10; }
+
+    /* ---- menu ---- */
+    #menu { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; background: radial-gradient(ellipse at center, rgba(0,0,0,0) 30%, rgba(0,0,0,0.35)); }
+    #title { font-family: var(--display); font-size: clamp(54px, 11vw, 128px); color: var(--gold); text-shadow: 5px 5px 0 var(--ink), -2px -2px 0 var(--ink), 2px -2px 0 var(--ink), -2px 2px 0 var(--ink); margin: 0 0 4px; line-height: 1; }
+    #title span { display: inline-block; animation: wob 1.6s ease-in-out infinite; }
+    @keyframes wob { 0%,100% { transform: translateY(0) rotate(-4deg); } 50% { transform: translateY(-10px) rotate(5deg); } }
+    #subtitle { font-weight: 800; color: #fff; text-shadow: 2px 2px 0 var(--ink); margin: 0 0 16px; font-size: 18px; }
+    #menu button { width: 300px; font-size: 26px; padding: 12px; }
+    #menu .small { width: auto; font-size: 16px; padding: 6px 12px; }
+    #menu .row { display: flex; gap: 10px; align-items: center; color: #fff; font-weight: 800; text-shadow: 1px 1px 0 var(--ink); }
+
+    /* ---- HUD ---- */
+    .bar { position: absolute; display: flex; gap: 8px; align-items: center; padding: 8px 10px; }
+    #topbar { top: 10px; left: 50%; transform: translateX(-50%); }
+    .teamstat { font-family: var(--display); font-size: 20px; padding: 4px 12px; border-radius: 10px; color: #fff; border: 3px solid var(--ink); min-width: 150px; text-align: center; }
+    .teamstat.r { background: var(--red); } .teamstat.b { background: var(--blue); }
+    #clock { font-family: var(--display); font-size: 22px; min-width: 70px; text-align: center; }
+    #unitbar { bottom: 10px; left: 50%; transform: translateX(-50%); max-width: calc(100vw - 20px); overflow-x: auto; }
+    .card { width: 104px; height: 112px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; padding: 4px; font-size: 14px; position: relative; }
+    .card .icon { font-size: 38px; line-height: 1; }
+    .card .cost { font-family: 'Nunito'; font-weight: 800; font-size: 13px; color: #8a5a00; }
+    .card .key { position: absolute; top: 3px; left: 7px; font-size: 12px; opacity: .6; }
+    .card.sel { background: var(--gold); transform: translateY(-6px); }
+    #sidebar { right: 10px; top: 50%; transform: translateY(-50%); flex-direction: column; align-items: stretch; }
+    #sidebar select { font-family: 'Nunito'; font-weight: 800; font-size: 15px; padding: 6px; border-radius: 8px; border: 3px solid var(--ink); }
+    #help { position: absolute; left: 10px; bottom: 10px; font-size: 13px; font-weight: 800; color: #fff; text-shadow: 1px 1px 2px #000; line-height: 1.5; max-width: 330px; }
+    #banner { position: absolute; top: 26%; left: 50%; transform: translate(-50%, -50%); text-align: center; padding: 22px 34px; }
+    #banner h1 { font-family: var(--display); font-size: 64px; margin: 0 0 12px; text-shadow: 3px 3px 0 var(--ink); color: #fff; }
+    #banner .btns { display: flex; gap: 10px; justify-content: center; }
+    #toast { position: absolute; top: 80px; left: 50%; transform: translateX(-50%); font-family: var(--display); font-size: 22px; color: #fff; text-shadow: 2px 2px 0 var(--ink); transition: opacity .3s; pointer-events: none; }
+
+    /* ---- creator ---- */
+    #creator { position: absolute; left: 10px; top: 10px; bottom: 10px; width: 340px; padding: 14px; overflow-y: auto; }
+    #creator h2 { font-family: var(--display); margin: 0 0 8px; font-size: 30px; }
+    #creator label { display: grid; grid-template-columns: 110px 1fr 44px; align-items: center; gap: 6px; font-weight: 800; font-size: 14px; margin: 6px 0; }
+    #creator label.wide { grid-template-columns: 110px 1fr; }
+    #creator input[type=text], #creator select { font-family: 'Nunito'; font-weight: 800; font-size: 14px; padding: 5px; border: 2px solid var(--ink); border-radius: 8px; width: 100%; }
+    #creator input[type=range] { width: 100%; accent-color: var(--ink); }
+    #creator .val { font-size: 12px; text-align: right; }
+    #creator .cost { font-family: var(--display); font-size: 22px; margin: 10px 0; }
+    #creator .btns { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+    #creator .btns button { font-size: 15px; padding: 6px 10px; }
+    #creator h3 { font-family: var(--display); margin: 14px 0 4px; font-size: 20px; }
+    #creator .saved { display: flex; justify-content: space-between; align-items: center; gap: 6px; padding: 4px 0; border-bottom: 1px dashed #b9a98a; font-weight: 800; }
+    #creator .saved button { font-size: 13px; padding: 3px 8px; }
+    #creator .hint { font-size: 12px; opacity: .75; }
+  </style>
+</head>
+<body>
+  <div id="loading">Loading wobblers…</div>
+  <div id="ui"></div>
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>

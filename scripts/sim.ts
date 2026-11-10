@@ -2,7 +2,6 @@
  * Headless battle simulation: no renderer, no browser, no player.
  *   npm run sim            -> balance/walk checks + a random battle, prints PASS/FAIL
  */
-import * as THREE from 'three';
 import { initRapier, PHYSICS_HZ } from '../src/core/Physics';
 import { Battle } from '../src/battle/Battle';
 import { createGrassyPlains } from '../src/world/MapData';
@@ -72,8 +71,6 @@ for (const def of allUnits()) {
   const ms = performance.now() - t0;
   const label = b.winner === null ? 'none' : b.winner === 0 ? 'Red' : 'Blue';
   check('battle resolves', b.phase === 'over', `winner=${label} simTime=${b.time.toFixed(1)}s wall=${(ms / 1000).toFixed(1)}s hits=${hits} casts=${casts} deaths=${deaths}`);
-  const v = new THREE.Vector3();
-  void v;
   b.dispose();
 }
 

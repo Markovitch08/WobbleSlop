@@ -7,7 +7,8 @@ import { think } from '../ai/Brain';
 import type { PartName } from '../units/Ragdoll';
 import { buildMapPhysics, type MapData } from '../world/MapData';
 
-export type Phase = 'placement' | 'battle' | 'over';
+/** sandbox = physics runs but nobody wins (used by the Unit Creator preview). */
+export type Phase = 'placement' | 'battle' | 'over' | 'sandbox';
 export const TEAM_NAMES = ['Red', 'Blue'];
 
 export interface Placement { unitId: string; team: number; x: number; z: number }
@@ -119,6 +120,11 @@ export class Battle implements BattleContext {
     for (const p of placements) this.addUnit(p.unitId, p.team, p.x, p.z);
   }
 
+  startSandbox(): void {
+    this.phase = 'sandbox';
+    this.acc = 0;
+  }
+
   start(): void {
     if (this.phase !== 'placement') return;
     this.phase = 'battle';
@@ -128,7 +134,7 @@ export class Battle implements BattleContext {
 
   // ---------------------------------------------------------------- simulation
   /** Advance by real time dt (seconds); runs fixed physics steps scaled by timeScale. */
-  update(dt: number, maxSteps = 6): void {
+  update(dt: number, maxSteps = 4): void {
     if (this.phase === 'placement') return;
     this.acc += Math.min(dt, 0.1) * this.timeScale;
     let n = 0;
@@ -142,6 +148,7 @@ export class Battle implements BattleContext {
 
   stepOnce(): void {
     const over = this.phase === 'over';
+    // Units only pick fights once the battle is on (sandbox units idle unless an enemy exists).
     for (const u of this.units) think(u, this.units, over);
     for (const u of this.units) u.step();
     this.physics.step();
@@ -230,10 +237,11 @@ export class Battle implements BattleContext {
     if (!attacker.alive || (!striking && speed < 5)) return;
     if (!attacker.registerStrike(victim.id)) return;
     const w = attacker.weapon;
-    const mult = THREE.MathUtils.clamp(speed / 7, 0.4, 1.8) * (striking ? 1 : 0.5) * attacker.def.stats.strength;
+    // Faster swings hurt more; strength mostly adds knockback.
+    const mult = THREE.MathUtils.clamp(speed / 7, 0.5, 1.4) * (striking ? 1 : 0.5) * (0.75 + 0.25 * attacker.def.stats.strength);
     const dir = vel.lengthSq() > 0.01 ? vel.clone().normalize() : victim.pos.sub(attacker.pos).normalize();
     dir.y += 0.35;
-    const impulse = dir.normalize().multiplyScalar(w.knockback * mult);
+    const impulse = dir.normalize().multiplyScalar(w.knockback * mult * attacker.def.stats.strength);
     const wasAlive = victim.alive;
     victim.takeHit(part, w.damage * mult * (part === 'head' ? 1.4 : 1), impulse);
     if (wasAlive) this.emit({ type: 'hit', pos: attacker.tipWorld(), power: Math.min(1, mult / 1.5), weapon: w.shape });

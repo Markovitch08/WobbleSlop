@@ -23,7 +23,7 @@ export function estimateCost(def: UnitDef): number {
   const dps = (w.projectile ? w.projectile.damage * 1.4 : w.damage) / (w.cooldown + w.windup + w.strike);
   const s = def.stats;
   const raw = (s.health / 100) * 40 + dps * 1.4 + s.speed * 6 + s.balance * 15 + s.strength * 15 + def.body.size * 25;
-  return Math.max(20, Math.round(raw / 10) * 10);
+  return Math.max(20, Math.round((raw * 0.63) / 10) * 10);
 }
 
 export function saveCustomUnit(def: UnitDef): void {
