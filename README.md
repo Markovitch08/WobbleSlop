@@ -13,7 +13,7 @@ npm test           # headless checks: units stand, walk, and an AI battle resolv
 ```
 
 `dist/index.html` runs straight from disk, so you can double-click it or host it anywhere.
-The included workflow `.github/workflows/pages.yml` publishes it to GitHub Pages on every push to `main`
+The included workflow `.github/workflows/pages.yml` publishes it to GitHub Pages on every push to `main` or `claude/focused-gates-ll0kaq`
 (turn it on once under **Settings → Pages → Source: GitHub Actions**).
 
 ### Modes

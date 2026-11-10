@@ -2,7 +2,7 @@ name: Deploy game to GitHub Pages
 
 on:
   push:
-    branches: [main]
+    branches: [main, claude/focused-gates-ll0kaq]
   workflow_dispatch:
 
 permissions:
