@@ -26,7 +26,7 @@ The included workflow `.github/workflows/pages.yml` publishes it to GitHub Pages
 | | |
 |---|---|
 | WASD / arrows | move camera |
-| Right- or middle-drag | look (inverted: drag the world; orbit in follow mode) |
+| Right- or middle-drag | look (horizontal inverted; orbit in follow mode) |
 | Wheel | dolly / zoom |
 | Space or E / Q or Ctrl | up / down |
 | Shift | fast |
